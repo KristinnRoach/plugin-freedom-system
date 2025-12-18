@@ -22,13 +22,30 @@ This POC will serve as the base for a more sophisticated sampler with pre-proces
 
 ## UI Concept
 
-**Layout:** Simple two-knob interface with sample loading area
-**Visual Style:** Reference GainKnob plugin for knob implementation
+**Layout:** Vertical flow - sample loading area at top (30-110px), controls below (180-310px)
+**Window Size:** 500×350 (compact, fixed)
+**Visual Style:** Matches GainKnob (#1a1a1a background, white text, system fonts)
+
 **Key Elements:**
-- Sample drop zone / file browser button for loading audio files
-- Volume knob (0-1 normalized, like GainKnob)
-- Tuning knob (±12 semitones)
-- Visual feedback showing loaded sample name
+- Sample drop zone (420×80px) - Drag & drop area with dashed border
+- Browse button (📁 folder icon, 40×40px) - Inside dropzone at top-left corner
+- Volume knob (120px diameter) - Rotary control at (100, 180)
+- Tuning knob (120px diameter) - Rotary control at (280, 180)
+- Sample name display - Shows loaded file name
+- Double-click reset - Knobs reset to defaults on double-click
+
+**Colors:**
+- Background: #1a1a1a (very dark)
+- Text: #ffffff (white)
+- Secondary: #888888 (gray)
+- Dropzone: #252525 with #404040 border
+
+**Typography:**
+- Font: System fonts (-apple-system, BlinkMacSystemFont, Segoe UI, Roboto)
+- Labels: 14px uppercase with 0.15em letter-spacing
+- Values: 16px
+
+**Mockup Version:** v2 (finalized 2025-12-18)
 
 ## Technical Notes
 
