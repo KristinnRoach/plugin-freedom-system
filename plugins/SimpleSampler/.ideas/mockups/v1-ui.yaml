@@ -1,0 +1,103 @@
+# SimpleSampler UI Specification - v1
+# Generated: 2025-12-18
+# Plugin: SimpleSampler
+# Description: Minimal sampler with sample loading and two-knob control
+
+window:
+  width: 500
+  height: 350
+  resizable: false
+
+colors:
+  background: "#1a1a1a"
+  text: "#ffffff"
+  secondary_text: "#888888"
+  accent: "#ffffff"
+  border: "#333333"
+  dropzone_bg: "#252525"
+  dropzone_border: "#404040"
+  button_bg: "#2a2a2a"
+  button_hover: "#353535"
+
+typography:
+  primary: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+  label_size: "14px"
+  label_spacing: "0.15em"
+  label_transform: "uppercase"
+  value_size: "16px"
+
+layout:
+  type: vertical
+  sections:
+    - id: sample_area
+      y: 20
+      height: 120
+    - id: controls
+      y: 160
+      height: 170
+
+controls:
+  - id: sample_dropzone
+    type: dropzone
+    label: "Load Sample"
+    position: {x: 40, y: 30}
+    size: {width: 420, height: 80}
+    accepted_formats: ["wav", "aiff", "mp3"]
+    placeholder_text: "Drop audio file here or click Browse"
+
+  - id: browse_button
+    type: button
+    label: "Browse"
+    position: {x: 360, y: 95}
+    size: {width: 100, height: 32}
+
+  - id: volume
+    type: knob
+    label: "Volume"
+    parameter: "volume"
+    range: [0.0, 1.0]
+    default: 0.75
+    decimals: 2
+    position: {x: 100, y: 180}
+    size: {diameter: 120}
+    unit: ""
+
+  - id: tuning
+    type: knob
+    label: "Tuning"
+    parameter: "tuning"
+    range: [-12.0, 12.0]
+    default: 0.0
+    decimals: 1
+    position: {x: 280, y: 180}
+    size: {diameter: 120}
+    unit: "st"
+
+styling:
+  knob_design:
+    type: rotary
+    rotation_range: 270  # -135 to +135 degrees
+    color: "#ffffff"
+    background: "#2a2a2a"
+    track_color: "#404040"
+    indicator_type: line
+    indicator_length: 40
+    indicator_width: 3
+
+  dropzone_design:
+    border_style: dashed
+    border_width: 2
+    border_radius: 8
+    hover_border_color: "#606060"
+
+  button_design:
+    border_radius: 4
+    font_weight: 500
+
+notes:
+  - All measurements in pixels
+  - Parameter IDs match creative-brief.md specification
+  - Knob size (diameter: 120) matches GainKnob reference
+  - Vertical layout: sample loading at top, controls below
+  - Compact 500x350 window size
+  - Matches GainKnob styling: dark background, white text, system fonts
