@@ -1,0 +1,76 @@
+# ============================================================================
+# WebView CMake Configuration Snippet for SimpleSampler
+# ============================================================================
+# IMPORTANT: This is a SNIPPET to ADD to SimpleSampler's CMakeLists.txt
+#
+# Add this AFTER your existing juce_add_plugin() configuration.
+# ============================================================================
+
+# WebView UI Resources
+# Embed all UI files into plugin binary
+juce_add_binary_data(SimpleSampler_UIResources
+    SOURCES
+        Source/ui/public/index.html
+        Source/ui/public/js/juce/index.js
+        Source/ui/public/js/juce/check_native_interop.js
+        # Add any additional CSS, images, fonts here
+)
+
+# Link UI resources to plugin
+target_link_libraries(SimpleSampler
+    PRIVATE
+        SimpleSampler_UIResources
+        juce::juce_gui_extra  # Required for WebBrowserComponent
+)
+
+# Enable WebView on supported platforms
+target_compile_definitions(SimpleSampler
+    PUBLIC
+        JUCE_WEB_BROWSER=1
+        JUCE_USE_CURL=0
+)
+
+# Platform-specific WebView configuration
+if(APPLE)
+    # macOS/iOS use WebKit (built-in, no additional setup)
+elseif(WIN32)
+    # Windows requires WebView2 runtime
+    # WebView2 SDK will be automatically downloaded by JUCE
+elseif(UNIX)
+    # Linux uses WebKit2GTK (must be installed on system)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WEBKIT2 REQUIRED webkit2gtk-4.0)
+    target_link_libraries(SimpleSampler PRIVATE ${WEBKIT2_LIBRARIES})
+    target_include_directories(SimpleSampler PRIVATE ${WEBKIT2_INCLUDE_DIRS})
+endif()
+
+# ============================================================================
+# CRITICAL: juce_add_plugin() must also include NEEDS_WEB_BROWSER
+# ============================================================================
+# Ensure your juce_add_plugin() call includes:
+#
+#   juce_add_plugin(SimpleSampler
+#       COMPANY_NAME "YourCompany"
+#       PLUGIN_MANUFACTURER_CODE Manu
+#       PLUGIN_CODE SiSa
+#       FORMATS VST3 AU Standalone
+#       PRODUCT_NAME "SimpleSampler"
+#       NEEDS_WEB_BROWSER TRUE  # REQUIRED for VST3 WebView support
+#   )
+# ============================================================================
+
+# ============================================================================
+# Resource Naming Convention
+# ============================================================================
+# File paths are converted to BinaryData identifiers:
+#   Source/ui/public/index.html                     -> BinaryData::index_html
+#   Source/ui/public/js/juce/index.js               -> BinaryData::index_js
+#   Source/ui/public/js/juce/check_native_interop.js -> BinaryData::check_native_interop_js
+#
+# Rules:
+#   - Path separator (/) becomes underscore (_)
+#   - Dot (.) becomes underscore (_)
+#   - Extension removed from identifier
+#
+# Use these identifiers in your PluginEditor.cpp getResource() method
+# ============================================================================

@@ -3,6 +3,9 @@
 # Plugin: SimpleSampler
 # Description: Refined v1 - browse button moved inside dropzone, icon-based, double-click reset
 
+finalized: true
+finalized_date: 2025-12-18
+
 window:
   width: 500
   height: 350

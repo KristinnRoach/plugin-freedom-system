@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleSampler UI</title>
+    <style>
+        /* ====================================================================
+           CRITICAL CSS CONSTRAINTS
+           ==================================================================== */
+
+        /* CRITICAL: Use 100%, NOT 100vh
+           Why: JUCE WebView doesn't initialize viewport units (vh, vw, dvh)
+           until first resize event. Using them causes blank screen on load.
+        */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;  /* NOT 100vh - viewport units break first render */
+            overflow: hidden;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* ====================================================================
+           NATIVE APPLICATION FEEL
+           ==================================================================== */
+
+        body {
+            /* Disable text selection (this is not a document) */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            cursor: default;
+
+            /* Plugin styling */
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+            /* Layout */
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* ====================================================================
+           PLUGIN CONTAINER
+           ==================================================================== */
+
+        .container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* ====================================================================
+           SAMPLE LOADING AREA
+           ==================================================================== */
+
+        .sample-area {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 120px;
+            padding: 0 40px;
+        }
+
+        .dropzone {
+            position: absolute;
+            left: 40px;
+            top: 30px;
+            width: 420px;
+            height: 80px;
+            background: #252525;
+            border: 2px dashed #404040;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .dropzone:hover {
+            border-color: #606060;
+            background: #2a2a2a;
+        }
+
+        .dropzone.drag-over {
+            border-color: #fff;
+            background: #353535;
+        }
+
+        .dropzone-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            opacity: 0.4;
+        }
+
+        .dropzone-text {
+            font-size: 14px;
+            color: #888888;
+            letter-spacing: 0.05em;
+            text-align: center;
+        }
+
+        .sample-name {
+            font-size: 13px;
+            color: #ffffff;
+            font-weight: 500;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* Browse button - INSIDE DROPZONE */
+        .browse-button {
+            position: absolute;
+            left: 50px;   /* Inside dropzone, top-left corner */
+            top: 40px;
+            width: 40px;
+            height: 40px;
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 20px;  /* Icon size */
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;  /* Above dropzone content */
+        }
+
+        .browse-button:hover {
+            background: #353535;
+            border-color: #505050;
+        }
+
+        .browse-button:active {
+            background: #1a1a1a;
+            transform: scale(0.95);
+        }
+
+        /* Hidden file input */
+        #fileInput {
+            display: none;
+        }
+
+        /* ====================================================================
+           CONTROLS AREA
+           ==================================================================== */
+
+        .controls-area {
+            position: absolute;
+            top: 160px;
+            left: 0;
+            right: 0;
+            height: 170px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 60px;
+        }
+
+        /* ====================================================================
+           KNOB COMPONENT
+           ==================================================================== */
+
+        .knob-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .knob {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            cursor: pointer;
+            transform-origin: center center;
+            transition: transform 50ms ease-out;
+        }
+
+        .knob-background {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: #2a2a2a;
+            border: 3px solid #1a1a1a;
+        }
+
+        /* Fixed lighting layer - doesn't rotate */
+        .knob-lighting {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            box-shadow:
+                inset -3px -3px 8px rgba(0,0,0,0.6),
+                inset 3px 3px 8px rgba(255,255,255,0.05);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Rotating body - texture + indicator */
+        .knob-body {
+            position: absolute;
+            inset: 0;
+            transform-origin: center center;
+            transition: transform 50ms ease-out;
+            z-index: 1;
+        }
+
+        .knob-indicator {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            height: 40px;
+            background: #ffffff;
+            border-radius: 2px;
+        }
+
+        .knob-track {
+            position: absolute;
+            inset: 8px;
+            border-radius: 50%;
+            border: 2px solid #404040;
+        }
+
+        .knob-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .knob-value {
+            font-size: 16px;
+            color: #888888;
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Sample Loading Area -->
+        <div class="sample-area">
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-icon">♪</div>
+                <div class="dropzone-text">Drop audio file here</div>
+                <div class="sample-name" id="sampleName" style="display: none;"></div>
+            </div>
+            <!-- Browse button INSIDE dropzone, top-left corner -->
+            <div class="browse-button" id="browseBtn">📁</div>
+            <input type="file" id="fileInput" accept=".wav,.aiff,.mp3" />
+        </div>
+
+        <!-- Controls Area -->
+        <div class="controls-area">
+
+            <!-- Volume Knob -->
+            <div class="knob-container">
+                <div class="knob" id="volumeKnob" data-param="volume" data-min="0" data-max="1" data-value="0.75" data-default="0.75">
+                    <div class="knob-background"></div>
+                    <div class="knob-lighting"></div>
+                    <div class="knob-body" id="volumeBody">
+                        <div class="knob-track"></div>
+                        <div class="knob-indicator"></div>
+                    </div>
+                </div>
+                <div class="knob-label">Volume</div>
+                <div class="knob-value" id="volumeValue">0.75</div>
+            </div>
+
+            <!-- Tuning Knob -->
+            <div class="knob-container">
+                <div class="knob" id="tuningKnob" data-param="tuning" data-min="-12" data-max="12" data-value="0" data-default="0">
+                    <div class="knob-background"></div>
+                    <div class="knob-lighting"></div>
+                    <div class="knob-body" id="tuningBody">
+                        <div class="knob-track"></div>
+                        <div class="knob-indicator"></div>
+                    </div>
+                </div>
+                <div class="knob-label">Tuning</div>
+                <div class="knob-value" id="tuningValue">0.0 st</div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script type="module">
+        // ====================================================================
+        // JUCE FRONTEND LIBRARY IMPORT
+        // ====================================================================
+
+        import * as Juce from "./js/juce/index.js";
+
+        // ====================================================================
+        // NATIVE APPLICATION FEEL (JavaScript)
+        // ====================================================================
+
+        // Disable right-click context menu
+        document.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            return false;
+        });
+
+        // Disable default drag behaviors
+        document.addEventListener("dragstart", (e) => {
+            e.preventDefault();
+        });
+
+        // ====================================================================
+        // ERROR HANDLING
+        // ====================================================================
+
+        window.addEventListener("error", (e) => {
+            console.error("JavaScript error:", e.message, e.filename, e.lineno);
+        });
+
+        window.addEventListener("unhandledrejection", (e) => {
+            console.error("Unhandled promise rejection:", e.reason);
+        });
+
+        // ====================================================================
+        // PARAMETER BINDING
+        // ====================================================================
+
+        // Verify JUCE backend is connected
+        if (!window.__JUCE__) {
+            console.error("JUCE backend not available");
+            document.body.innerHTML = "<h1>Error: JUCE backend not connected</h1>";
+            throw new Error("JUCE backend not connected");
+        }
+
+        console.log("JUCE backend connected:", window.__JUCE__.backend);
+
+        // ====================================================================
+        // KNOB CONTROL IMPLEMENTATION
+        // ====================================================================
+
+        class Knob {
+            constructor(element, paramId) {
+                this.element = element;
+                this.body = element.querySelector('.knob-body');
+                this.valueDisplay = element.parentElement.querySelector('.knob-value');
+                this.paramId = paramId;
+                this.min = parseFloat(element.dataset.min);
+                this.max = parseFloat(element.dataset.max);
+                this.defaultValue = parseFloat(element.dataset.default);
+
+                // Get JUCE parameter state
+                this.paramState = Juce.getSliderState(this.paramId);
+
+                this.isDragging = false;
+                this.lastY = 0;
+
+                this.setupEventListeners();
+                this.initializeFromParameter();
+            }
+
+            setupEventListeners() {
+                // Double-click to reset
+                this.element.addEventListener('dblclick', this.onDoubleClick.bind(this));
+
+                // Drag control
+                this.element.addEventListener('mousedown', this.onMouseDown.bind(this));
+                document.addEventListener('mousemove', this.onMouseMove.bind(this));
+                document.addEventListener('mouseup', this.onMouseUp.bind(this));
+
+                // Mouse wheel support
+                this.element.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+
+                // Listen for parameter changes from C++ (automation, preset recall)
+                this.paramState.valueChangedEvent.addListener(() => {
+                    const normalized = this.paramState.getNormalisedValue();
+                    const value = this.min + (normalized * (this.max - this.min));
+                    this.updateVisual(value);
+                });
+            }
+
+            onDoubleClick(e) {
+                e.preventDefault();
+                const normalized = (this.defaultValue - this.min) / (this.max - this.min);
+                this.paramState.setNormalisedValue(normalized);
+            }
+
+            onMouseDown(e) {
+                this.isDragging = true;
+                this.lastY = e.clientY;
+                e.preventDefault();
+            }
+
+            onMouseMove(e) {
+                if (!this.isDragging) return;
+
+                const deltaY = this.lastY - e.clientY;  // Relative drag (frame-to-frame)
+                const range = this.max - this.min;
+                const sensitivity = 0.005;
+                const delta = deltaY * range * sensitivity;
+
+                const currentNormalized = this.paramState.getNormalisedValue();
+                const currentValue = this.min + (currentNormalized * range);
+                const newValue = Math.max(this.min, Math.min(this.max, currentValue + delta));
+                const newNormalized = (newValue - this.min) / range;
+
+                this.paramState.setNormalisedValue(newNormalized);
+                this.lastY = e.clientY;
+            }
+
+            onMouseUp() {
+                this.isDragging = false;
+            }
+
+            onWheel(e) {
+                e.preventDefault();
+                const range = this.max - this.min;
+                const delta = -e.deltaY * range * 0.001;
+
+                const currentNormalized = this.paramState.getNormalisedValue();
+                const currentValue = this.min + (currentNormalized * range);
+                const newValue = Math.max(this.min, Math.min(this.max, currentValue + delta));
+                const newNormalized = (newValue - this.min) / range;
+
+                this.paramState.setNormalisedValue(newNormalized);
+            }
+
+            initializeFromParameter() {
+                const normalized = this.paramState.getNormalisedValue();
+                const value = this.min + (normalized * (this.max - this.min));
+                this.updateVisual(value);
+            }
+
+            updateVisual(value) {
+                // Update rotation
+                const normalized = (value - this.min) / (this.max - this.min);
+                const degrees = -135 + (normalized * 270);  // -135° to +135°
+                this.body.style.transform = `rotate(${degrees}deg)`;
+
+                // Update display
+                if (this.paramId === 'volume') {
+                    this.valueDisplay.textContent = value.toFixed(2);
+                } else if (this.paramId === 'tuning') {
+                    this.valueDisplay.textContent = value.toFixed(1) + ' st';
+                }
+            }
+        }
+
+        // ====================================================================
+        // SAMPLE LOADING IMPLEMENTATION
+        // ====================================================================
+
+        const dropzone = document.getElementById('dropzone');
+        const browseBtn = document.getElementById('browseBtn');
+        const fileInput = document.getElementById('fileInput');
+        const sampleName = document.getElementById('sampleName');
+        const dropzoneText = dropzone.querySelector('.dropzone-text');
+
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                loadSample(files[0]);
+            }
+        });
+
+        // Click to browse
+        dropzone.addEventListener('click', (e) => {
+            // Don't trigger if clicking browse button
+            if (e.target.closest('.browse-button')) return;
+            fileInput.click();
+        });
+
+        browseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();  // Prevent dropzone click
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadSample(e.target.files[0]);
+            }
+        });
+
+        function loadSample(file) {
+            console.log('Loading sample:', file.name);
+
+            // Update UI to show loaded sample
+            dropzoneText.style.display = 'none';
+            sampleName.textContent = file.name;
+            sampleName.style.display = 'block';
+            dropzone.style.borderStyle = 'solid';
+            dropzone.style.borderColor = '#666';
+
+            // In real implementation, this would:
+            // 1. Send file path to C++ via window.__JUCE__.backend
+            // 2. C++ loads audio file into memory
+            // 3. C++ sends confirmation back to JavaScript
+        }
+
+        // ====================================================================
+        // INITIALIZE CONTROLS
+        // ====================================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize knobs with JUCE parameter bindings
+            const volumeKnob = new Knob(document.getElementById('volumeKnob'), 'volume');
+            const tuningKnob = new Knob(document.getElementById('tuningKnob'), 'tuning');
+
+            console.log('SimpleSampler UI v2 initialized');
+            console.log('Parameter bindings active');
+        });
+
+    </script>
+</body>
+</html>
