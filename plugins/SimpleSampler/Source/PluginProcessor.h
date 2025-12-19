@@ -1,5 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "SimpleSamplerSound.h"
+#include "SimpleSamplerVoice.h"
 
 class SimpleSamplerAudioProcessor : public juce::AudioProcessor
 {
@@ -32,6 +34,9 @@ public:
     juce::AudioProcessorValueTreeState parameters;
 
 private:
+    // DSP Components (BEFORE APVTS for initialization order)
+    juce::Synthesiser synth;
+
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 

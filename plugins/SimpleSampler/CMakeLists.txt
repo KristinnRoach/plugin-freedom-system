@@ -17,6 +17,8 @@ target_sources(SimpleSampler
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/SimpleSamplerSound.cpp
+        Source/SimpleSamplerVoice.cpp
 )
 
 # Include paths

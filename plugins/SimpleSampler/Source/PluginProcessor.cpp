@@ -38,8 +38,19 @@ SimpleSamplerAudioProcessor::~SimpleSamplerAudioProcessor()
 
 void SimpleSamplerAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    // Initialization will be added in Stage 2 (DSP)
-    juce::ignoreUnused(sampleRate, samplesPerBlock);
+    juce::ignoreUnused(samplesPerBlock);
+
+    // Set synthesiser sample rate
+    synth.setCurrentPlaybackSampleRate(sampleRate);
+
+    // Add 16 voices for polyphony
+    synth.clearVoices();
+    for (int i = 0; i < 16; ++i)
+        synth.addVoice(new SimpleSamplerVoice());
+
+    // Add single sound with hardcoded sample (Phase 4.1)
+    synth.clearSounds();
+    synth.addSound(new SimpleSamplerSound());
 }
 
 void SimpleSamplerAudioProcessor::releaseResources()
@@ -50,17 +61,24 @@ void SimpleSamplerAudioProcessor::releaseResources()
 void SimpleSamplerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    juce::ignoreUnused(midiMessages);
 
-    // Parameter access example (for Stage 2 DSP implementation):
-    // auto* volumeParam = parameters.getRawParameterValue("volume");
-    // float volumeValue = volumeParam->load();  // Atomic read (real-time safe)
+    // Clear unused channels
+    for (int i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+        buffer.clear(i, 0, buffer.getNumSamples());
 
-    // auto* tuningParam = parameters.getRawParameterValue("tuning");
-    // float tuningValue = tuningParam->load();  // Atomic read (real-time safe)
+    // Read volume parameter (atomic, real-time safe)
+    auto* volumeParam = parameters.getRawParameterValue("volume");
+    float volumeValue = volumeParam->load();
 
-    // Clear output buffer for Stage 1 (no DSP yet - silent output)
-    buffer.clear();
+    // Update volume for all voices
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+    {
+        if (auto* voice = dynamic_cast<SimpleSamplerVoice*>(synth.getVoice(i)))
+            voice->setVolumeParameter(volumeValue);
+    }
+
+    // Render synthesiser (handles MIDI, voice allocation, sample playback)
+    synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* SimpleSamplerAudioProcessor::createEditor()
