@@ -20,6 +20,15 @@ bool SimpleSamplerSound::appliesToChannel(int midiChannel)
     return true;
 }
 
+const juce::AudioBuffer<float>* SimpleSamplerSound::getSampleBuffer() const
+{
+    // Phase 4.2: Return external buffer if available, otherwise fallback
+    if (externalSampleBuffer != nullptr)
+        return externalSampleBuffer;
+
+    return &fallbackSampleBuffer;
+}
+
 void SimpleSamplerSound::loadHardcodedSample()
 {
     // Generate 440Hz sine wave (1 second duration)
@@ -28,8 +37,8 @@ void SimpleSamplerSound::loadHardcodedSample()
     const float frequency = 440.0f;  // A4
 
     // Allocate mono buffer
-    sampleBuffer.setSize(1, numSamples);
-    auto* data = sampleBuffer.getWritePointer(0);
+    fallbackSampleBuffer.setSize(1, numSamples);
+    auto* data = fallbackSampleBuffer.getWritePointer(0);
 
     // Generate sine wave
     for (int i = 0; i < numSamples; ++i)

@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "SimpleSamplerSound.h"
 #include "SimpleSamplerVoice.h"
 
@@ -31,11 +32,25 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // File loading (called from UI thread)
+    void loadSampleFromFile(const juce::File& file);
+    juce::String getCurrentSampleName() const { return currentSampleName; }
+
     juce::AudioProcessorValueTreeState parameters;
 
 private:
     // DSP Components (BEFORE APVTS for initialization order)
     juce::Synthesiser synth;
+
+    // File I/O System (Phase 4.2)
+    juce::AudioFormatManager formatManager;
+    std::atomic<juce::AudioBuffer<float>*> currentSampleBuffer { nullptr };
+    juce::String currentSampleName;
+    juce::String currentSamplePath;
+
+    // Helper methods
+    void loadSampleInBackground(const juce::File& file);
+    void atomicSwapBuffer(juce::AudioBuffer<float>* newBuffer, const juce::String& sampleName, const juce::String& samplePath);
 
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

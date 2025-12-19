@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <thread>
 
 juce::AudioProcessorValueTreeState::ParameterLayout SimpleSamplerAudioProcessor::createParameterLayout()
 {
@@ -30,10 +31,15 @@ SimpleSamplerAudioProcessor::SimpleSamplerAudioProcessor()
                         .withOutput("Output", juce::AudioChannelSet::stereo(), true))  // Output-only for instruments
     , parameters(*this, nullptr, "Parameters", createParameterLayout())
 {
+    // Register audio format readers (WAV, AIFF, MP3)
+    formatManager.registerBasicFormats();
 }
 
 SimpleSamplerAudioProcessor::~SimpleSamplerAudioProcessor()
 {
+    // Clean up atomic sample buffer
+    auto* buffer = currentSampleBuffer.exchange(nullptr);
+    delete buffer;
 }
 
 void SimpleSamplerAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
@@ -48,7 +54,7 @@ void SimpleSamplerAudioProcessor::prepareToPlay(double sampleRate, int samplesPe
     for (int i = 0; i < 16; ++i)
         synth.addVoice(new SimpleSamplerVoice());
 
-    // Add single sound with hardcoded sample (Phase 4.1)
+    // Add single sound (Phase 4.2: uses external sample buffer)
     synth.clearSounds();
     synth.addSound(new SimpleSamplerSound());
 }
@@ -77,6 +83,14 @@ void SimpleSamplerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             voice->setVolumeParameter(volumeValue);
     }
 
+    // Phase 4.2: Pass loaded sample buffer to sound (atomic load with acquire ordering)
+    auto* sampleBuffer = currentSampleBuffer.load(std::memory_order_acquire);
+    if (sampleBuffer != nullptr && synth.getNumSounds() > 0)
+    {
+        if (auto* sound = dynamic_cast<SimpleSamplerSound*>(synth.getSound(0).get()))
+            sound->setSampleBuffer(sampleBuffer);
+    }
+
     // Render synthesiser (handles MIDI, voice allocation, sample playback)
     synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 }
@@ -99,6 +113,73 @@ void SimpleSamplerAudioProcessor::setStateInformation(const void* data, int size
 
     if (xmlState != nullptr && xmlState->hasTagName(parameters.state.getType()))
         parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
+}
+
+// Phase 4.2: File loading implementation
+void SimpleSamplerAudioProcessor::loadSampleFromFile(const juce::File& file)
+{
+    if (!file.existsAsFile())
+    {
+        DBG("File does not exist: " + file.getFullPathName());
+        return;
+    }
+
+    // Launch background thread to load file
+    loadSampleInBackground(file);
+}
+
+void SimpleSamplerAudioProcessor::loadSampleInBackground(const juce::File& file)
+{
+    // Background thread: Load file using AudioFormatReader
+    std::thread([this, file]()
+    {
+        // Create reader for the file
+        std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(file));
+
+        if (reader == nullptr)
+        {
+            DBG("Failed to create reader for file: " + file.getFullPathName());
+            juce::MessageManager::callAsync([this]()
+            {
+                currentSampleName = "Invalid File";
+            });
+            return;
+        }
+
+        // Allocate new buffer for loaded sample
+        auto* newBuffer = new juce::AudioBuffer<float>(
+            static_cast<int>(reader->numChannels),
+            static_cast<int>(reader->lengthInSamples)
+        );
+
+        // Read entire file into buffer
+        reader->read(newBuffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
+
+        // Get sample name
+        juce::String sampleName = file.getFileNameWithoutExtension();
+        juce::String samplePath = file.getFullPathName();
+
+        // Atomic swap on message thread (NOT background thread)
+        juce::MessageManager::callAsync([this, newBuffer, sampleName, samplePath]()
+        {
+            atomicSwapBuffer(newBuffer, sampleName, samplePath);
+        });
+    }).detach();
+}
+
+void SimpleSamplerAudioProcessor::atomicSwapBuffer(juce::AudioBuffer<float>* newBuffer, const juce::String& sampleName, const juce::String& samplePath)
+{
+    // Atomic swap with release ordering (message thread)
+    auto* oldBuffer = currentSampleBuffer.exchange(newBuffer, std::memory_order_release);
+
+    // Update sample name and path
+    currentSampleName = sampleName;
+    currentSamplePath = samplePath;
+
+    // Delete old buffer (safe: audio thread done with it)
+    delete oldBuffer;
+
+    DBG("Sample loaded: " + sampleName);
 }
 
 // Factory function

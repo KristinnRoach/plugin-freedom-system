@@ -9,12 +9,12 @@ void SimpleSamplerVoice::startNote(int midiNoteNumber, float velocity, juce::Syn
 {
     juce::ignoreUnused(currentPitchWheelPosition);
 
-    // Get sample buffer from sound
+    // Get sample buffer from sound (Phase 4.2: returns pointer)
     auto* samplerSound = dynamic_cast<SimpleSamplerSound*>(sound);
     if (samplerSound == nullptr)
         return;
 
-    currentSampleBuffer = &samplerSound->getSampleBuffer();
+    currentSampleBuffer = samplerSound->getSampleBuffer();
     currentSampleRate = samplerSound->getSampleRate();
 
     // Reset playback position
@@ -65,14 +65,22 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
     // Calculate final gain: volume parameter × MIDI velocity
     const float finalGain = volumeParameter * velocityGain;
 
-    // Get sample data (mono)
-    const auto* sampleData = currentSampleBuffer->getReadPointer(0);
+    // Get sample data (handle both mono and stereo samples)
+    const int numChannelsInSample = currentSampleBuffer->getNumChannels();
     const int sampleLength = currentSampleBuffer->getNumSamples();
 
-    // Render to all output channels (mono-to-stereo duplication)
+    if (numChannelsInSample == 0)
+        return;
+
+    // Render to all output channels
     for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
     {
         auto* outputData = outputBuffer.getWritePointer(channel);
+
+        // Use first channel if mono sample, otherwise use corresponding channel
+        const int sampleChannel = juce::jmin(channel, numChannelsInSample - 1);
+        const auto* sampleData = currentSampleBuffer->getReadPointer(sampleChannel);
+
         double pos = playbackPosition;
 
         for (int i = 0; i < numSamples; ++i)
