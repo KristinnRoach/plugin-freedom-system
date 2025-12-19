@@ -48,9 +48,20 @@ private:
     juce::String currentSampleName;
     juce::String currentSamplePath;
 
+    // Keyboard-to-MIDI System (Phase 4.3)
+    static constexpr int maxMidiQueueSize = 128;
+    juce::AbstractFifo midiQueue { maxMidiQueueSize };
+    std::array<juce::MidiMessage, maxMidiQueueSize> midiBuffer;
+
     // Helper methods
     void loadSampleInBackground(const juce::File& file);
     void atomicSwapBuffer(juce::AudioBuffer<float>* newBuffer, const juce::String& sampleName, const juce::String& samplePath);
+
+public:
+    // Keyboard MIDI injection (called from PluginEditor on message thread)
+    void addKeyboardMidi(const juce::MidiMessage& message);
+
+private:
 
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

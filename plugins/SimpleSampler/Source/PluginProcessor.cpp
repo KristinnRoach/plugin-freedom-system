@@ -72,15 +72,34 @@ void SimpleSamplerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     for (int i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
+    // Phase 4.3: Drain keyboard MIDI queue (lock-free, inject before synthesiser processing)
+    while (midiQueue.getNumReady() > 0)
+    {
+        int start1, size1, start2, size2;
+        midiQueue.prepareToRead(1, start1, size1, start2, size2);
+        if (size1 > 0)
+        {
+            midiMessages.addEvent(midiBuffer[static_cast<size_t>(start1)], 0);
+            midiQueue.finishedRead(1);
+        }
+    }
+
     // Read volume parameter (atomic, real-time safe)
     auto* volumeParam = parameters.getRawParameterValue("volume");
     float volumeValue = volumeParam->load();
 
-    // Update volume for all voices
+    // Phase 4.3: Read tuning parameter (atomic, real-time safe)
+    auto* tuningParam = parameters.getRawParameterValue("tuning");
+    float tuningValue = tuningParam->load();
+
+    // Update volume and tuning for all voices
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto* voice = dynamic_cast<SimpleSamplerVoice*>(synth.getVoice(i)))
+        {
             voice->setVolumeParameter(volumeValue);
+            voice->setTuningParameter(tuningValue);
+        }
     }
 
     // Phase 4.2: Pass loaded sample buffer to sound (atomic load with acquire ordering)
@@ -180,6 +199,27 @@ void SimpleSamplerAudioProcessor::atomicSwapBuffer(juce::AudioBuffer<float>* new
     delete oldBuffer;
 
     DBG("Sample loaded: " + sampleName);
+}
+
+// Phase 4.3: Add keyboard MIDI to queue (called from PluginEditor on message thread)
+void SimpleSamplerAudioProcessor::addKeyboardMidi(const juce::MidiMessage& message)
+{
+    // Lock-free queue write (message thread → audio thread)
+    if (midiQueue.getFreeSpace() > 0)
+    {
+        int start1, size1, start2, size2;
+        midiQueue.prepareToWrite(1, start1, size1, start2, size2);
+        if (size1 > 0)
+        {
+            midiBuffer[static_cast<size_t>(start1)] = message;
+            midiQueue.finishedWrite(1);
+        }
+    }
+    else
+    {
+        // Queue full - drop message (extremely unlikely with 128 buffer)
+        DBG("Keyboard MIDI queue full, dropping message");
+    }
 }
 
 // Factory function

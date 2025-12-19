@@ -20,11 +20,14 @@ void SimpleSamplerVoice::startNote(int midiNoteNumber, float velocity, juce::Syn
     // Reset playback position
     playbackPosition = 0.0;
 
+    // Store MIDI note for pitch recalculation (when tuning parameter changes)
+    currentMidiNote = midiNoteNumber;
+
     // Calculate pitch-shifting playback rate
     // Root note: C3 (MIDI 60) = 1.0x playback rate
     // Formula: playbackRate = pow(2.0, semitoneOffset / 12.0)
-    // Phase 4.1: No tuning parameter yet (tuningParameter = 0.0)
-    const float semitoneOffset = static_cast<float>(midiNoteNumber - 60);  // + tuningParameter (added in Phase 4.3)
+    // Phase 4.3: Integrate tuning parameter
+    const float semitoneOffset = static_cast<float>(midiNoteNumber - 60) + tuningParameter;
     playbackRate = std::pow(2.0, semitoneOffset / 12.0);
 
     // Store velocity for volume calculation

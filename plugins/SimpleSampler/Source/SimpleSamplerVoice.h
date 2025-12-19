@@ -26,8 +26,9 @@ public:
     void controllerMoved(int controllerNumber, int newControllerValue) override;
     void renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
 
-    // Volume control (called from PluginProcessor::processBlock)
+    // Parameter control (called from PluginProcessor::processBlock)
     void setVolumeParameter(float volume) { volumeParameter = volume; }
+    void setTuningParameter(float tuning) { tuningParameter = tuning; }
 
 private:
     // Playback state
@@ -35,6 +36,8 @@ private:
     double playbackRate = 1.0;
     float velocityGain = 1.0f;
     float volumeParameter = 0.75f;
+    float tuningParameter = 0.0f;  // Phase 4.3: Tuning offset in semitones
+    int currentMidiNote = 60;       // Phase 4.3: Store MIDI note for pitch recalculation
 
     // Sample reference (set in startNote)
     const juce::AudioBuffer<float>* currentSampleBuffer = nullptr;
