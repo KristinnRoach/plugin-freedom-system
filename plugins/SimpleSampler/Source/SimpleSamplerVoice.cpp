@@ -111,8 +111,8 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
             // Advance playback position by playback rate
             pos += playbackRate;
         }
-    }
 
-    // Update playback position for next block
-    playbackPosition += playbackRate * numSamples;
+        // Update playback position from loop (save the advanced position)
+        playbackPosition = pos;
+    }
 }
