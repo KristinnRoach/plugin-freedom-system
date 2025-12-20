@@ -75,6 +75,9 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
     if (numChannelsInSample == 0)
         return;
 
+    // Save starting position (will be updated once after all channels processed)
+    double pos = playbackPosition;
+
     // Render to all output channels
     for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
     {
@@ -84,12 +87,13 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
         const int sampleChannel = juce::jmin(channel, numChannelsInSample - 1);
         const auto* sampleData = currentSampleBuffer->getReadPointer(sampleChannel);
 
-        double pos = playbackPosition;
+        // Each channel reads from the same playback position
+        double channelPos = pos;
 
         for (int i = 0; i < numSamples; ++i)
         {
             // Linear interpolation for fractional sample reading
-            const int index = static_cast<int>(pos);
+            const int index = static_cast<int>(channelPos);
 
             if (index >= sampleLength - 1)
             {
@@ -98,7 +102,7 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
                 return;
             }
 
-            const float frac = static_cast<float>(pos - index);
+            const float frac = static_cast<float>(channelPos - index);
             const float sample0 = sampleData[index];
             const float sample1 = sampleData[index + 1];
 
@@ -108,11 +112,11 @@ void SimpleSamplerVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
             // Apply gain and add to output buffer (mix with other voices)
             outputData[startSample + i] += interpolatedSample * finalGain;
 
-            // Advance playback position by playback rate
-            pos += playbackRate;
+            // Advance channel's local playback position by playback rate
+            channelPos += playbackRate;
         }
-
-        // Update playback position from loop (save the advanced position)
-        playbackPosition = pos;
     }
+
+    // Update playback position once after all channels processed (was being updated per channel - bug fix)
+    playbackPosition = pos + (numSamples * playbackRate);
 }
