@@ -1,7 +1,7 @@
 #include "SimpleSamplerSound.h"
 
-SimpleSamplerSound::SimpleSamplerSound()
-    : sampleRate(44100.0)
+SimpleSamplerSound::SimpleSamplerSound(double sr)
+    : sampleRate(sr)
 {
     loadHardcodedSample();
 }

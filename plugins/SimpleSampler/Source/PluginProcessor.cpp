@@ -54,9 +54,9 @@ void SimpleSamplerAudioProcessor::prepareToPlay(double sampleRate, int samplesPe
     for (int i = 0; i < 16; ++i)
         synth.addVoice(new SimpleSamplerVoice());
 
-    // Add single sound (Phase 4.2: uses external sample buffer)
+    // Add single sound with correct sample rate
     synth.clearSounds();
-    synth.addSound(new SimpleSamplerSound());
+    synth.addSound(new SimpleSamplerSound(sampleRate));
 }
 
 void SimpleSamplerAudioProcessor::releaseResources()
@@ -165,23 +165,58 @@ void SimpleSamplerAudioProcessor::loadSampleInBackground(const juce::File& file)
             return;
         }
 
-        // Allocate new buffer for loaded sample
-        auto* newBuffer = new juce::AudioBuffer<float>(
+        // Get file sample rate and plugin sample rate
+        const double fileSampleRate = reader->sampleRate;
+        const double pluginSampleRate = getSampleRate();
+
+        // Allocate buffer for loaded sample
+        auto* loadedBuffer = new juce::AudioBuffer<float>(
             static_cast<int>(reader->numChannels),
             static_cast<int>(reader->lengthInSamples)
         );
 
         // Read entire file into buffer
-        reader->read(newBuffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
+        reader->read(loadedBuffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
 
-        // Get sample name
+        // Check if sample rate conversion is needed
+        juce::AudioBuffer<float>* finalBuffer = loadedBuffer;
+
+        if (pluginSampleRate > 0.0 && std::abs(fileSampleRate - pluginSampleRate) > 0.1)
+        {
+            // Sample rate mismatch - resample to plugin's sample rate
+            const double ratio = pluginSampleRate / fileSampleRate;
+            const int newNumSamples = static_cast<int>(std::ceil(reader->lengthInSamples * ratio));
+            const int numChannels = static_cast<int>(reader->numChannels);
+
+            DBG("Resampling: " + juce::String(fileSampleRate, 1) + "Hz -> " +
+                juce::String(pluginSampleRate, 1) + "Hz (ratio: " + juce::String(ratio, 3) + ")");
+
+            // Create resampled buffer
+            auto* resampledBuffer = new juce::AudioBuffer<float>(numChannels, newNumSamples);
+
+            // Resample each channel using Lagrange interpolation
+            for (int channel = 0; channel < numChannels; ++channel)
+            {
+                juce::LagrangeInterpolator interpolator;
+                interpolator.process(ratio,
+                                   loadedBuffer->getReadPointer(channel),
+                                   resampledBuffer->getWritePointer(channel),
+                                   newNumSamples);
+            }
+
+            // Delete original buffer and use resampled one
+            delete loadedBuffer;
+            finalBuffer = resampledBuffer;
+        }
+
+        // Get sample name and path
         juce::String sampleName = file.getFileNameWithoutExtension();
         juce::String samplePath = file.getFullPathName();
 
         // Atomic swap on message thread (NOT background thread)
-        juce::MessageManager::callAsync([this, newBuffer, sampleName, samplePath]()
+        juce::MessageManager::callAsync([this, finalBuffer, sampleName, samplePath]()
         {
-            atomicSwapBuffer(newBuffer, sampleName, samplePath);
+            atomicSwapBuffer(finalBuffer, sampleName, samplePath);
         });
     }).detach();
 }

@@ -11,7 +11,7 @@
 class SimpleSamplerSound : public juce::SynthesiserSound
 {
 public:
-    SimpleSamplerSound();
+    SimpleSamplerSound(double sampleRate = 44100.0);
     ~SimpleSamplerSound() override = default;
 
     // SynthesiserSound interface
